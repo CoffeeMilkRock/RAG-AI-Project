@@ -5,7 +5,7 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}", // This line scans your files for Tailwind classes
   ],
   theme: {
-    extend: {},
+    extend: { backgroundOpacity: ["active"] },
   },
   plugins: [],
 };

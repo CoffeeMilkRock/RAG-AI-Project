@@ -1,7 +1,15 @@
 import React, { useState } from "react";
 import "./App.css";
-import { UploadIcon, XIcon, LightbulbIcon } from "./components/Icons";
-
+import {
+  UploadIcon,
+  XIcon,
+  LightbulbIcon,
+  BrainCircuitIcon,
+  SearchIcon,
+} from "./components/Icons";
+import HoverableFormula from "./components/HoverableFormula";
+import { BlockMath, InlineMath } from "react-katex";
+import "katex/dist/katex.min.css";
 function App() {
   const [fileName, setFileName] = useState(null);
   const [question, setQuestion] = useState("");
@@ -17,13 +25,22 @@ function App() {
   const [showFormulaModal, setShowFormulaModal] = useState(false);
   const [formulaExplanation, setFormulaExplanation] = useState("");
 
+  const [showExplainModal, setShowExplainModal] = useState(false);
+  const [explainContent, setExplainContent] = useState("");
+
   // --- MOCK DATA ---
   const mockResponses = {
     Novice: {
       type: "paragraph",
-      content:
-        "The transformer architecture relies on a mechanism called 'self-attention'. Think of it like this: when reading a sentence, you pay more attention to certain words to understand the context. Self-attention allows the model to weigh the importance of different words in the input when processing a specific word, which helps it understand complex relationships and long-range dependencies in the text.",
+      content: `The transformer architecture relies on a mechanism called Attention(Q, K, V) = softmax((QK^T) / \\sqrt{d_k}) * V. Think of it like this: when reading a sentence, you pay more attention to certain words to understand the context. Self-attention allows the model to weigh the importance of different words in the input when processing a specific word, which helps it understand complex relationships and long-range dependencies in the text.`,
       citation: "Page 4, Section 2.1",
+      formulas: [
+        {
+          term: "Attention(Q, K, V) = softmax((QK^T) / \\sqrt{d_k}) * V",
+          explanation:
+            "\\int_{0}^{\\infty} e^{-x^2} \\, dx = \\frac{\\sqrt{\\pi}}{2}. Tích phân Gauss nửa trục dương. Thường chứng minh bằng cách bình phương tích phân và đổi sang toạ độ cực. \\frac{a}{b} + c. Ví dụ:cộng phân số với hạng số. Gộp một phân số: (a + bc)/b",
+        },
+      ],
       context:
         "From Section 2.1: ...An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum of the values, where the weight assigned to each value is computed by a compatibility function of the query with the corresponding key...",
       reasoning:
@@ -129,20 +146,67 @@ function App() {
     setFormulaExplanation(mockFormulaExplanation);
     setShowFormulaModal(true);
   };
+  const handleExplainClick = () => {
+    setFormulaExplanation(mockFormulaExplanation);
+    setShowFormulaModal(true);
+  };
+  const renderParagraphWithFormulas = (answer) => {
+    let content = answer.content;
+    const formulas = answer.formulas || [];
+    if (formulas.length === 0) {
+      return <p className="text-gray-300 leading-relaxed">{content}</p>;
+    }
 
+    // THAY ĐỔI: Thêm hàm escape để xử lý các ký tự đặc biệt trong công thức khi tạo Regex
+    const escapeRegExp = (string) => {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
+    };
+
+    const parts = content.split(
+      new RegExp(
+        `(${formulas.map((f) => escapeRegExp(f.term)).join("|")})`,
+        "g"
+      )
+    );
+
+    return (
+      <p className="text-gray-300 leading-relaxed">
+        {parts.map((part, index) => {
+          const formula = formulas.find((f) => f.term === part);
+          if (formula) {
+            return (
+              <HoverableFormula
+                key={index}
+                onExplainClick={() => handleExplainClick()}
+              >
+                <InlineMath math={formula.term} />
+              </HoverableFormula>
+            );
+          }
+          return part;
+        })}
+      </p>
+    );
+  };
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans">
+    <div className="min-h-screen bg-gray-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-gray-900 to-black text-white font-sans">
       {/* Responsive container: p-4 for mobile, md:p-8 for larger screens */}
       <div className="container mx-auto p-4 md:p-8">
         {/* Header with responsive margins and font sizes */}
-        <header className="text-left mb-8 md:mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-cyan-400">
-            AI Research Assistant
-          </h1>
-          <p className="text-gray-400 mt-2">
-            Upload a paper, ask a question, and get cited answers.
-          </p>
+        <header className=" mb-8 md:mb-12">
+          <div>
+            <div className="flex items-center space-x-4">
+              <BrainCircuitIcon />
+              <h4 className="text-3xl md:text-3xl  bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-teal-300 mt-2">
+                AI Research Assistant
+              </h4>
+            </div>
+            <p className="text-gray-400 mt-2">
+              Upload a paper, ask a question, and get cited answers.
+            </p>
+          </div>
+          <div></div>
         </header>
 
         {/* Responsive Grid: Stacks to 1 column on mobile, becomes 2 columns on large screens (lg) */}
@@ -226,8 +290,8 @@ function App() {
           </div>
 
           {/* Right Column: Output */}
-          <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 flex flex-col min-h-[400px]">
-            <h2 className="text-2xl font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2">
+          <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl shadow-lg border border-white/10 flex flex-col min-h-[400px]">
+            <h2 className="text-2xl font-bold mb-4 text-gray-200 border-b border-white/10 pb-2">
               Answer
             </h2>
             <div className="flex-grow flex items-center justify-center">
@@ -242,14 +306,12 @@ function App() {
                   <p>Your answer will appear here.</p>
                 </div>
               )}
+              {/* --- UI ENHANCEMENT: Added a more dynamic entrance animation --- */}
               {answer && (
-                <div className="w-full animate-fade-in">
-                  {/* Answer Content */}
-                  {answer.type === "paragraph" && (
-                    <p className="text-gray-300 leading-relaxed">
-                      {answer.content}
-                    </p>
-                  )}
+                <div className="w-full animate-fade-in-scale">
+                  {/* TÍNH NĂNG MỚI: Sử dụng hàm render mới cho đoạn văn */}
+                  {answer.type === "paragraph" &&
+                    renderParagraphWithFormulas(answer)}
                   {answer.type === "figure" && (
                     <div className="text-center">
                       <img
@@ -265,54 +327,24 @@ function App() {
                   {answer.type === "table" && (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr>
-                            {answer.content[0].map((header, i) => (
-                              <th
-                                key={i}
-                                className="p-3 bg-gray-700 border-b-2 border-gray-600 font-semibold"
-                              >
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {answer.content.slice(1).map((row, i) => (
-                            <tr
-                              key={i}
-                              className="bg-gray-800 hover:bg-gray-700/50 transition-colors"
-                            >
-                              {row.map((cell, j) => (
-                                <td
-                                  key={j}
-                                  className="p-3 border-b border-gray-700 text-gray-300"
-                                >
-                                  {cell}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
+                        {/* ... table content ... */}
                       </table>
                     </div>
                   )}
-
-                  {/* Responsive Action Buttons: flex-wrap allows buttons to stack on small screens */}
-                  <div className="mt-6 pt-4 border-t border-gray-700 flex flex-wrap items-center justify-between gap-4">
+                  <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
                     <p className="text-sm font-semibold text-cyan-400 bg-cyan-900/50 px-3 py-1 rounded-full">
                       {answer.citation}
                     </p>
                     <div className="flex space-x-3">
                       <button
                         onClick={() => setShowContextModal(true)}
-                        className="px-3 py-1.5 text-sm bg-gray-700 rounded-md hover:bg-gray-600 transition-colors"
+                        className="px-3 py-1.5 text-sm bg-white/10 rounded-md hover:bg-white/20 transition-colors"
                       >
                         Show context
                       </button>
                       <button
                         onClick={() => setShowReasoningModal(true)}
-                        className="px-3 py-1.5 text-sm bg-gray-700 rounded-md hover:bg-gray-600 transition-colors"
+                        className="px-3 py-1.5 text-sm bg-white/10 rounded-md hover:bg-white/20 transition-colors"
                       >
                         Why this?
                       </button>
@@ -349,7 +381,7 @@ function App() {
       {/* Modals are responsive by default due to w-full and max-w-* classes */}
       {/* Context Modal */}
       {showContextModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
+        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
           <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-gray-700 transform animate-slide-up">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-200">
@@ -373,7 +405,7 @@ function App() {
 
       {/* Reasoning Modal */}
       {showReasoningModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
+        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
           <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-gray-700 transform animate-slide-up">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-200">
@@ -397,7 +429,7 @@ function App() {
 
       {/* Formula Insight Modal */}
       {showFormulaModal && formulaExplanation && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
+        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
           <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-3xl border border-gray-700 transform animate-slide-up max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-200">
@@ -412,11 +444,7 @@ function App() {
             </div>
 
             <div className="bg-gray-900 p-4 rounded-lg mb-4 text-center">
-              <img
-                src="https://placehold.co/400x100/111827/ffffff?text=Attention(Q,K,V)=softmax(QKᵀ/√dₖ)V"
-                alt="Formula"
-                className="mx-auto rounded"
-              />
+              <BlockMath math="Attention(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V" />
             </div>
 
             <div className="space-y-4 text-gray-300">
@@ -436,13 +464,35 @@ function App() {
                   {formulaExplanation.variables.map((v) => (
                     <li key={v.name} className="p-3 bg-gray-700/50 rounded-md">
                       <strong className="font-mono text-teal-400">
-                        {v.name}:
+                        <InlineMath math={v.name} />:
                       </strong>{" "}
                       {v.meaning}
                     </li>
                   ))}
                 </ul>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showExplainModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
+          <div className="bg-gray-800/50 backdrop-blur-xl rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-white/10 transform animate-slide-up">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-200">
+                Giải thích Công thức
+              </h3>
+              <button
+                onClick={() => setShowExplainModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <XIcon />
+              </button>
+            </div>
+            <div className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
+              <p className="text-gray-300 whitespace-pre-wrap">
+                {explainContent}
+              </p>
             </div>
           </div>
         </div>
