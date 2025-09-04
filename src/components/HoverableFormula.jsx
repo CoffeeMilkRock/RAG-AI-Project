@@ -1,21 +1,25 @@
+// Updated src/components/HoverableFormula.jsx
 import React from "react";
-import { InlineMath } from "react-katex";
-import "katex/dist/katex.min.css";
-import { SearchIcon } from "./Icons";
-const HoverableFormula = ({ children, onExplainClick }) => {
+import { InlineMath, BlockMath } from "react-katex";
+
+const HoverableFormula = ({ tex, inline, onExplain }) => {
+  const MathComponent = inline ? InlineMath : BlockMath;
+  const Wrapper = inline ? "span" : "div";
+  const wrapperClass =
+    "relative group " + (inline ? "inline-block" : "block mx-auto my-4");
+  console.log("Rendering formula:", tex);
   return (
-    <span className="relative group inline-block">
-      {/* THAY ĐỔI: Thêm font-mono để công thức trông giống code/toán học hơn */}
-      <span className="font-mono font-semibold text-teal-300 underline decoration-dotted decoration-teal-300/50 cursor-pointer px-1">
-        {children}
-      </span>
+    <Wrapper className={wrapperClass}>
+      <MathComponent math={tex} throwOnError={false} />
       <button
-        onClick={onExplainClick}
-        className="absolute cursor-pointer bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-900 text-white text-xs font-bold rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap shadow-lg border border-white/10"
+        onClick={() => onExplain(tex)}
+        className="absolute top-0 right-0 hidden group-hover:block bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg hover:bg-blue-600 transition-all duration-200"
+        style={{ transform: "translate(100%, -50%)" }} // Positions button to the right, vertically centered
       >
-        <SearchIcon /> Explain
+        Explain
       </button>
-    </span>
+    </Wrapper>
   );
 };
+
 export default HoverableFormula;

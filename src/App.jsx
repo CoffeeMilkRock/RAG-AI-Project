@@ -1,4 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, use } from "react";
+import { getAnswer } from "./services/mockApi";
+import { autoFormatAnswer } from "./utils/autoFormatAnswer";
+import { AnswerRenderer } from "./components/AnswerRenderer";
+import { RenderPaper } from "./components/RenderPaper";
 import "./App.css";
 import {
   UploadIcon,
@@ -16,7 +20,6 @@ function App() {
   const [mode, setMode] = useState("Novice");
   const [isLoading, setIsLoading] = useState(false);
   const [answer, setAnswer] = useState(null);
-
   // Modal States
   const [showContextModal, setShowContextModal] = useState(false);
   const [contextContent, setContextContent] = useState("");
@@ -27,91 +30,13 @@ function App() {
 
   const [showExplainModal, setShowExplainModal] = useState(false);
   const [explainContent, setExplainContent] = useState("");
-
-  // --- MOCK DATA ---
-  const mockResponses = {
-    Novice: {
-      type: "paragraph",
-      content: `The transformer architecture relies on a mechanism called Attention(Q, K, V) = softmax((QK^T) / \\sqrt{d_k}) * V. Think of it like this: when reading a sentence, you pay more attention to certain words to understand the context. Self-attention allows the model to weigh the importance of different words in the input when processing a specific word, which helps it understand complex relationships and long-range dependencies in the text.`,
-      citation: "Page 4, Section 2.1",
-      formulas: [
-        {
-          term: "Attention(Q, K, V) = softmax((QK^T) / \\sqrt{d_k}) * V",
-          explanation:
-            "\\int_{0}^{\\infty} e^{-x^2} \\, dx = \\frac{\\sqrt{\\pi}}{2}. Tích phân Gauss nửa trục dương. Thường chứng minh bằng cách bình phương tích phân và đổi sang toạ độ cực. \\frac{a}{b} + c. Ví dụ:cộng phân số với hạng số. Gộp một phân số: (a + bc)/b",
-        },
-      ],
-      context:
-        "From Section 2.1: ...An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum of the values, where the weight assigned to each value is computed by a compatibility function of the query with the corresponding key...",
-      reasoning:
-        "The question asked for a simple explanation of the core concept. The 'Novice' mode was selected, so I retrieved the introductory paragraph from the relevant section (2.1) and rephrased it using an analogy to make it more accessible. The core information is extracted and simplified, avoiding technical jargon.",
-    },
-    Researcher: {
-      type: "table",
-      content: [
-        ["Component", "Description", "Key Innovation"],
-        [
-          "Multi-Head Attention",
-          "Runs the attention mechanism in parallel multiple times.",
-          "Allows the model to jointly attend to information from different representation subspaces at different positions.",
-        ],
-        [
-          "Positional Encoding",
-          "Injects information about the relative or absolute position of tokens.",
-          "Since the model contains no recurrence, this is crucial for making use of the order of the sequence.",
-        ],
-        [
-          "Feed-Forward Networks",
-          "Applied to each position separately and identically.",
-          "Consists of two linear transformations with a ReLU activation in between.",
-        ],
-      ],
-      citation: "Page 5-7, Section 3",
-      context:
-        "From Section 3: ...we employ a residual connection around each of the two sub-layers, followed by layer normalization. That is, the output of each sub-layer is LayerNorm(x + Sublayer(x)), where Sublayer(x) is the function implemented by the sub-layer itself...",
-      reasoning:
-        "The user is in 'Researcher' mode and asked for key components. A table is the most effective format for a structured, comparative overview. I scanned the paper for section headings and keywords related to architecture components, extracted the primary function of each, and synthesized the information into a concise table format.",
-    },
-    Reviewer: {
-      type: "figure",
-      content:
-        "https://placehold.co/600x400/1f2937/ffffff?text=Mock+Architecture+Diagram",
-      caption: "Figure 1: The Transformer - model architecture.",
-      citation: "Page 3, Figure 1",
-      context:
-        "From Page 3, Figure 1 Caption: The Transformer - model architecture. The left part shows the encoder, and the right part shows the decoder architecture of the Transformer.",
-      reasoning:
-        "The question asked for a visual overview, and the 'Reviewer' mode implies a need for high-level structural understanding. The most relevant piece of information is the main architecture diagram (Figure 1). I identified this as the key visual element, extracted it, and presented it with its original caption and page number for direct verification.",
-    },
+  const modeDescriptions = {
+    Novice: "Simplified explanations uploaded paper for beginners",
+    Researcher: "In-depth analysis for researchers",
+    Reviewer: "Critical evaluation for peer reviewers",
+    "Related Paper": "Find papers related to the uploaded document",
   };
-
-  const mockFormulaExplanation = {
-    description:
-      "This is the scaled dot-product attention formula, which is the core of the multi-head attention mechanism in the Transformer model.",
-    variables: [
-      {
-        name: "Q",
-        meaning:
-          "Queries matrix, representing the current word/position being processed.",
-      },
-      {
-        name: "K",
-        meaning:
-          "Keys matrix, representing all other words/positions in the sequence to be scored against.",
-      },
-      {
-        name: "V",
-        meaning:
-          "Values matrix, containing the actual representations of the words in the sequence.",
-      },
-      {
-        name: "d_k",
-        meaning:
-          "The dimension of the keys and queries. The scaling factor prevents the dot products from growing too large.",
-      },
-    ],
-    role: "Its role is to calculate the 'attention scores' for each word in the input sequence relative to every other word. By scaling the dot products of queries and keys, and then applying a softmax function, it produces a set of weights. These weights are then used to create a weighted sum of the values (V), effectively allowing the model to focus on the most relevant parts of the input for a given task.",
-  };
+  useEffect(() => {}, [answer]);
 
   // --- EVENT HANDLERS ---
   const handleFileChange = (e) => {
@@ -119,112 +44,121 @@ function App() {
       setFileName(e.target.files[0].name);
     }
   };
-
+  const handleContextClick = () => {
+    if (answer && answer.citations && answer.citations.length > 0) {
+      setContextContent(
+        autoFormatAnswer(answer.citations[0].content.text) || "No context."
+      );
+      setShowContextModal(true);
+    }
+  };
+  const handleReasoningClick = () => {
+    if (answer && answer.citations && answer.citations.length > 0) {
+      setReasoningContent(
+        autoFormatAnswer(answer.citations[0].reason) || "No reasoning."
+      );
+      setShowReasoningModal(true);
+    }
+  };
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!fileName || !question) {
+    if (!fileName) {
       // Using a custom modal or inline message is better than alert() in a real app
-      console.error("Please upload a PDF and enter a question.");
+      if ((mode === "Reviewer" || mode === "Reseacher") && !question) {
+        console.log("Please enter a question for this mode.");
+        return;
+      }
+      console.log("Please upload a PDF file to proceed.");
       return;
     }
     setIsLoading(true);
     setAnswer(null);
-
     // Simulate API call
     setTimeout(() => {
-      const response = mockResponses[mode];
-      setAnswer(response);
-      setContextContent(response.context);
-      setReasoningContent(response.reasoning);
+      getAnswer(mode).then(setAnswer);
       setIsLoading(false);
     }, 2500);
   };
+  const handleModeChange = (m) => {
+    if (isLoading) return; // Prevent changing mode while loading
+    setMode(m);
+    setAnswer(null);
+  };
 
-  const handleFormulaInsight = () => {
-    // In a real app, this would trigger a UI for cropping a part of the PDF.
-    // Here, we'll just simulate the result.
-    setFormulaExplanation(mockFormulaExplanation);
+  const handleExplainClick = (tex) => {
+    const mockExplanation = `Explanation for the formula "${tex}":\n\nThis formula represents a dynamic learning rate schedule commonly used in training transformer models. It adjusts the learning rate based on the model dimension and training steps, incorporating a warmup phase followed by decay.\n\n- **Warmup Phase**: Increases linearly to prevent early instability.\n- **Decay Phase**: Decreases inversely with the square root of steps for better convergence.`;
+
+    setFormulaExplanation(mockExplanation);
     setShowFormulaModal(true);
   };
-  const handleExplainClick = () => {
-    setFormulaExplanation(mockFormulaExplanation);
-    setShowFormulaModal(true);
-  };
-  const renderParagraphWithFormulas = (answer) => {
-    let content = answer.content;
-    const formulas = answer.formulas || [];
-    if (formulas.length === 0) {
-      return <p className="text-gray-300 leading-relaxed">{content}</p>;
+
+  const renderParagraphWithFormulas = (answer, mode) => {
+    if (mode === "Related Paper") {
+      console.log("Rendering related paper:", answer);
+      return <RenderPaper paperJson={answer} />;
     }
-
-    // THAY ĐỔI: Thêm hàm escape để xử lý các ký tự đặc biệt trong công thức khi tạo Regex
-    const escapeRegExp = (string) => {
-      return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
-    };
-
-    const parts = content.split(
-      new RegExp(
-        `(${formulas.map((f) => escapeRegExp(f.term)).join("|")})`,
-        "g"
-      )
-    );
-
-    return (
-      <p className="text-gray-300 leading-relaxed">
-        {parts.map((part, index) => {
-          const formula = formulas.find((f) => f.term === part);
-          if (formula) {
-            return (
-              <HoverableFormula
-                key={index}
-                onExplainClick={() => handleExplainClick()}
-              >
-                <InlineMath math={formula.term} />
-              </HoverableFormula>
-            );
-          }
-          return part;
-        })}
-      </p>
-    );
+    let content = autoFormatAnswer(answer.answer);
+    return <AnswerRenderer content={content} />;
   };
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-gray-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-gray-900 to-black text-white font-sans">
-      {/* Responsive container: p-4 for mobile, md:p-8 for larger screens */}
-      <div className="container mx-auto p-4 md:p-8">
-        {/* Header with responsive margins and font sizes */}
-        <header className=" mb-8 md:mb-12">
-          <div>
-            <div className="flex items-center space-x-4">
-              <BrainCircuitIcon />
-              <h4 className="text-3xl md:text-3xl  bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-teal-300 mt-2">
+    <div className="min-h-screen bg-slate-900 relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="relative z-10 container mx-auto p-4 md:p-8">
+        <header className="mb-8 md:mb-12 text-center">
+          <div className="inline-block">
+            <div className="flex items-center justify-center space-x-4 mb-4">
+              <div className="p-3 bg-blue-500/10 rounded-2xl backdrop-blur-sm border border-blue-500/20">
+                <BrainCircuitIcon className="w-8 h-8 text-blue-400" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold text-white">
                 AI Research Assistant
-              </h4>
+              </h1>
             </div>
-            <p className="text-gray-400 mt-2">
-              Upload a paper, ask a question, and get cited answers.
+            <p className="text-gray-100 text-lg font-medium max-w-2xl mx-auto leading-relaxed">
+              Upload a research paper, ask intelligent questions, and receive
+              <span className="text-blue-400 font-semibold">
+                {" "}
+                AI-powered insights{" "}
+              </span>
+              with precise citations
             </p>
           </div>
-          <div></div>
         </header>
 
-        {/* Responsive Grid: Stacks to 1 column on mobile, becomes 2 columns on large screens (lg) */}
         <main className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column: Controls */}
-          <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-            <form onSubmit={handleSubmit}>
-              {/* 1. Upload PDF */}
-              <div className="mb-6">
-                <label className="block text-lg font-semibold mb-2 text-gray-300">
-                  1. Upload Paper
+          <div className="bg-gray-800/50 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-gray-700/50 hover:border-gray-600/50 transition-all duration-500">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              <div className="space-y-3">
+                <label className=" text-xl font-bold text-white mb-4 flex items-center space-x-2">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                  <span>Upload Research Paper</span>
                 </label>
                 <label
                   htmlFor="pdf-upload"
-                  className="w-full flex items-center justify-center px-4 py-3 bg-gray-700 text-gray-300 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors duration-200"
+                  className={`group/upload relative w-full flex items-center justify-center px-6 py-6 bg-gray-700/50 backdrop-blur-sm text-gray-100 rounded-2xl cursor-pointer border-2 border-dashed transition-all duration-300 hover:scale-[1.02] ${
+                    fileName
+                      ? "border-blue-400/50 bg-blue-900/20"
+                      : "border-gray-500/50 hover:border-blue-400/50 hover:bg-blue-900/10"
+                  }`}
                 >
-                  <UploadIcon />
-                  <span>{fileName || "Select a PDF file"}</span>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex p-2 bg-blue-400/20 rounded-xl group-hover/upload:bg-blue-400/30 transition-colors">
+                      <div className="w-6 h-6 mr-0">
+                        <UploadIcon />
+                      </div>
+                    </div>
+                    <span className="font-semibold text-white">
+                      {fileName || "Choose PDF file"}
+                    </span>
+                  </div>
+                  {fileName && (
+                    <div className="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full"></div>
+                  )}
                 </label>
                 <input
                   id="pdf-upload"
@@ -235,262 +169,290 @@ function App() {
                 />
               </div>
 
-              {/* 2. Ask Question */}
-              <div className="mb-6">
-                <label
-                  htmlFor="question"
-                  className="block text-lg font-semibold mb-2 text-gray-300"
-                >
-                  2. Ask a Question
+              <div className="space-y-4">
+                <label className=" text-xl font-bold text-white flex items-center space-x-2">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                  <span>Analysis Mode</span>
                 </label>
-                <textarea
-                  id="question"
-                  rows="4"
-                  className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-shadow"
-                  placeholder="e.g., 'What is the core mechanism of the transformer architecture?'"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                ></textarea>
-              </div>
-
-              {/* 3. Choose Mode */}
-              <div className="mb-8">
-                <label className="block text-lg font-semibold mb-3 text-gray-300">
-                  3. Choose Mode
-                </label>
-                {/* Using flex and flex-1 makes the buttons distribute space evenly and adapt to screen width */}
-                <div className="flex flex-wrap gap-2">
-                  {["Novice", "Researcher", "Reviewer"].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMode(m)}
-                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white
-                                                ${
-                                                  mode === m
-                                                    ? "bg-cyan-500 text-white shadow-md"
-                                                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                                                }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-3">
+                  {["Novice", "Researcher", "Reviewer", "Related Paper"].map(
+                    (m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => handleModeChange(m)}
+                        className={`relative overflow-hidden cursor-pointer py-4 px-4 rounded-xl text-sm font-bold transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transform hover:scale-105 ${
+                          mode === m
+                            ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
+                            : "bg-gray-700/50 text-gray-100 hover:bg-gray-600/50 border border-gray-600/50 hover:border-gray-500/50"
+                        } ${
+                          isLoading && mode !== m
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
+                        disabled={isLoading && mode !== m}
+                      >
+                        <span className="relative z-10">{m}</span>
+                      </button>
+                    )
+                  )}
+                  {mode ? (
+                    <div className="col-span-2 text-gray-300 text-sm italic px-1">
+                      {modeDescriptions[mode]}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {(mode === "Reviewer" || mode === "Researcher") && (
+                <div className="space-y-3">
+                  <label
+                    htmlFor="question"
+                    className="text-xl font-bold text-white flex items-center space-x-2"
+                  >
+                    <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                    <span>Your Question</span>
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      id="question"
+                      rows="4"
+                      className="w-full p-4 bg-gray-700/50 backdrop-blur-sm rounded-2xl border border-gray-600/50 focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 focus:outline-none transition-all duration-300 text-white placeholder-gray-300 resize-none hover:bg-gray-600/50"
+                      placeholder="e.g., 'What is the core mechanism of the transformer architecture and how does it improve upon previous attention mechanisms?'"
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                    />
+                    <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+                      {question.length}/500
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full py-3 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-lg hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
-                disabled={isLoading || !fileName || !question}
+                className="relative w-full py-4 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-2xl overflow-hidden transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg hover:shadow-blue-500/25"
+                disabled={
+                  isLoading ||
+                  !fileName ||
+                  ((mode === "Reviewer" || mode === "Researcher") && !question)
+                }
               >
-                {isLoading ? "Analyzing..." : "Get Answer"}
+                <span className="relative z-10 flex items-center justify-center space-x-2">
+                  {isLoading ? (
+                    <div className="flex items-center space-x-5">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mr-2"></div>
+                      <span>Analyzing Research...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <SearchIcon className="w-5 h-5" />
+                      <span>Generate AI Insights</span>
+                    </>
+                  )}
+                </span>
               </button>
             </form>
           </div>
 
-          {/* Right Column: Output */}
-          <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl shadow-lg border border-white/10 flex flex-col min-h-[400px]">
-            <h2 className="text-2xl font-bold mb-4 text-gray-200 border-b border-white/10 pb-2">
-              Answer
-            </h2>
-            <div className="flex-grow flex items-center justify-center">
+          <div className="bg-gray-800/50 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-gray-700/50 hover:border-gray-600/50 transition-all duration-500 flex flex-col min-h-[500px]">
+            <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-gray-600/50">
+              <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+              <h2 className="text-2xl font-bold text-white">
+                AI Analysis Results
+              </h2>
+            </div>
+
+            <div className="flex-grow flex  justify-center">
               {isLoading && (
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto"></div>
-                  <p className="mt-4 text-gray-400">Generating response...</p>
-                </div>
-              )}
-              {!isLoading && !answer && (
-                <div className="text-center text-gray-500">
-                  <p>Your answer will appear here.</p>
-                </div>
-              )}
-              {/* --- UI ENHANCEMENT: Added a more dynamic entrance animation --- */}
-              {answer && (
-                <div className="w-full animate-fade-in-scale">
-                  {/* TÍNH NĂNG MỚI: Sử dụng hàm render mới cho đoạn văn */}
-                  {answer.type === "paragraph" &&
-                    renderParagraphWithFormulas(answer)}
-                  {answer.type === "figure" && (
-                    <div className="text-center">
-                      <img
-                        src={answer.content}
-                        alt={answer.caption}
-                        className="rounded-lg mx-auto mb-2 max-w-full h-auto shadow-md"
-                      />
-                      <p className="text-sm text-gray-400 italic">
-                        {answer.caption}
-                      </p>
-                    </div>
-                  )}
-                  {answer.type === "table" && (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        {/* ... table content ... */}
-                      </table>
-                    </div>
-                  )}
-                  <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
-                    <p className="text-sm font-semibold text-cyan-400 bg-cyan-900/50 px-3 py-1 rounded-full">
-                      {answer.citation}
-                    </p>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => setShowContextModal(true)}
-                        className="px-3 py-1.5 text-sm bg-white/10 rounded-md hover:bg-white/20 transition-colors"
-                      >
-                        Show context
-                      </button>
-                      <button
-                        onClick={() => setShowReasoningModal(true)}
-                        className="px-3 py-1.5 text-sm bg-white/10 rounded-md hover:bg-white/20 transition-colors"
-                      >
-                        Why this?
-                      </button>
-                    </div>
+                <div className="flex items-center  text-center space-y-4">
+                  <div className="relative">
+                    <div className="w-16 h-16 mr-5 border-4 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mx-auto"></div>
                   </div>
+                  <div className="space-y-2">
+                    <p className="text-blue-400 font-semibold">
+                      Processing research paper...
+                    </p>
+                    <p className="text-gray-300 text-sm">
+                      This may take a few moments
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!isLoading && !answer && (
+                <div className="flex items-center text-center space-y-4 opacity-60">
+                  <div className="space-y-2">
+                    <p className="text-gray-100 font-medium">
+                      Ready for analysis
+                    </p>
+                    <p className="text-gray-300 text-sm">
+                      Upload a paper and ask a question to begin
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {answer && (
+                <div className="w-full space-y-6">
+                  <div className=" overflow-y-auto max-h-[500px] custom-scrollbar text-gray-100 leading-relaxed">
+                    {renderParagraphWithFormulas(answer, mode)}
+                  </div>
+                  {answer && (mode === "Researcher" || mode === "Reviewer") ? (
+                    <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-gray-600/50">
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={handleContextClick}
+                          className="px-4 py-2 text-sm bg-gray-700/50 backdrop-blur-sm rounded-xl hover:bg-gray-600/50 transition-all duration-300 text-gray-100 border border-gray-600/50 hover:border-gray-500/50 transform hover:scale-105"
+                        >
+                          View Context
+                        </button>
+                        <button
+                          onClick={handleReasoningClick}
+                          className="px-4 py-2 text-sm bg-gray-700/50 backdrop-blur-sm rounded-xl hover:bg-gray-600/50 transition-all duration-300 text-gray-100 border border-gray-600/50 hover:border-gray-500/50 transform hover:scale-105"
+                        >
+                          Show Reasoning
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
           </div>
         </main>
 
-        {/* Formula Insight Section: Stacks vertically on mobile (flex-col), row on medium screens (md:flex-row) */}
-        <div className="mt-8 bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-gray-200 flex items-center">
-                <LightbulbIcon /> Formula Insight
+        <div className="mt-8 bg-gray-800/50 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-gray-700/50 hover:border-gray-600/50 transition-all duration-500">
+          <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-white flex items-center space-x-3">
+                <div className="p-2 bg-blue-400/20 rounded-xl">
+                  <LightbulbIcon className="w-6 h-6 text-blue-400" />
+                </div>
+                <span>Formula Intelligence</span>
               </h3>
-              <p className="text-gray-400 mt-1">
-                Select a formula in the document to get a detailed explanation.
+              <p className="text-gray-100 leading-relaxed max-w-md">
+                Select mathematical formulas in your document to receive
+                detailed explanations and contextual insights
               </p>
             </div>
             <button
-              onClick={handleFormulaInsight}
-              className="mt-4 md:mt-0 py-2 px-5 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all duration-200 transform hover:scale-105"
+              onClick={handleExplainClick}
+              className="relative overflow-hidden py-3 px-8 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-2xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:transform-none shadow-lg hover:shadow-blue-500/25"
               disabled={!fileName}
             >
-              Analyze Formula
+              <span className="relative z-10 flex items-center space-x-2">
+                <span>Analyze Formulas</span>
+                <div className="w-2 h-2 bg-white/80 rounded-full"></div>
+              </span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Modals are responsive by default due to w-full and max-w-* classes */}
-      {/* Context Modal */}
       {showContextModal && (
-        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
-          <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-gray-700 transform animate-slide-up">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-200">
-                Source Context
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-4xl border border-gray-600/50 max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-white flex items-center space-x-3">
+                <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                <span>Source Context</span>
               </h3>
               <button
                 onClick={() => setShowContextModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-2 text-gray-300 hover:text-white hover:bg-gray-700/50 rounded-xl transition-all duration-200"
               >
-                <XIcon />
+                <XIcon className="w-6 h-6" />
               </button>
             </div>
-            <div className="bg-gray-900 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
-              <p className="text-gray-300 whitespace-pre-wrap font-mono text-sm">
-                "{contextContent}"
-              </p>
+            <div className="bg-gray-700/50 backdrop-blur-sm p-6 rounded-2xl max-h-[60vh] overflow-y-auto text-gray-100 border border-gray-600/30">
+              <AnswerRenderer content={contextContent} />
             </div>
           </div>
         </div>
       )}
 
-      {/* Reasoning Modal */}
       {showReasoningModal && (
-        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
-          <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-gray-700 transform animate-slide-up">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-200">
-                Retrieval & Reasoning
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-4xl border border-gray-600/50 max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-white flex items-center space-x-3">
+                <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                <span>AI Reasoning Process</span>
               </h3>
               <button
                 onClick={() => setShowReasoningModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-2 text-gray-300 hover:text-white hover:bg-gray-700/50 rounded-xl transition-all duration-200"
               >
-                <XIcon />
+                <XIcon className="w-6 h-6" />
               </button>
             </div>
-            <div className="bg-gray-900 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
-              <p className="text-gray-300 whitespace-pre-wrap">
-                {reasoningContent}
-              </p>
+            <div className="bg-gray-700/50 backdrop-blur-sm p-6 rounded-2xl max-h-[60vh] overflow-y-auto text-gray-100 border border-gray-600/30">
+              <AnswerRenderer content={reasoningContent} />
             </div>
           </div>
         </div>
       )}
 
-      {/* Formula Insight Modal */}
       {showFormulaModal && formulaExplanation && (
-        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
-          <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-3xl border border-gray-700 transform animate-slide-up max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-200">
-                Formula Insight
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-5xl border border-gray-600/50 max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-white flex items-center space-x-3">
+                <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                <span>Formula Intelligence</span>
               </h3>
               <button
                 onClick={() => setShowFormulaModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-2 text-gray-300 hover:text-white hover:bg-gray-700/50 rounded-xl transition-all duration-200"
               >
-                <XIcon />
+                <XIcon className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="bg-gray-900 p-4 rounded-lg mb-4 text-center">
+            <div className="bg-gray-700/30 backdrop-blur-sm p-8 rounded-2xl mb-6 text-center border border-gray-600/30">
               <BlockMath math="Attention(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V" />
             </div>
 
-            <div className="space-y-4 text-gray-300">
-              <div>
-                <h4 className="font-semibold text-cyan-400">Description</h4>
-                <p>{formulaExplanation.description}</p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-cyan-400">
-                  Role in Pipeline
+            <div className="space-y-6 text-gray-100">
+              <div className="bg-gray-700/30 backdrop-blur-sm p-6 rounded-2xl border border-gray-600/30">
+                <h4 className="font-bold text-blue-400 text-lg mb-3 flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span>Description</span>
                 </h4>
-                <p>{formulaExplanation.role}</p>
+                <p className="leading-relaxed">
+                  {formulaExplanation.description}
+                </p>
               </div>
-              <div>
-                <h4 className="font-semibold text-cyan-400 mb-2">Variables</h4>
-                <ul className="space-y-2">
-                  {formulaExplanation.variables.map((v) => (
-                    <li key={v.name} className="p-3 bg-gray-700/50 rounded-md">
-                      <strong className="font-mono text-teal-400">
-                        <InlineMath math={v.name} />:
-                      </strong>{" "}
-                      {v.meaning}
-                    </li>
-                  ))}
-                </ul>
+              <div className="bg-gray-700/30 backdrop-blur-sm p-6 rounded-2xl border border-gray-600/30">
+                <h4 className="font-bold text-blue-400 text-lg mb-3 flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span>Role in Pipeline</span>
+                </h4>
+                <p className="leading-relaxed">{formulaExplanation.role}</p>
               </div>
             </div>
           </div>
         </div>
       )}
+
       {showExplainModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 animate-fade-in-fast">
-          <div className="bg-gray-800/50 backdrop-blur-xl rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-white/10 transform animate-slide-up">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-200">
-                Giải thích Công thức
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-4xl border border-gray-600/50 max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-white flex items-center space-x-3">
+                <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                <span>Formula Explanation</span>
               </h3>
               <button
                 onClick={() => setShowExplainModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-2 text-gray-300 hover:text-white hover:bg-gray-700/50 rounded-xl transition-all duration-200"
               >
-                <XIcon />
+                <XIcon className="w-6 h-6" />
               </button>
             </div>
-            <div className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
-              <p className="text-gray-300 whitespace-pre-wrap">
+            <div className="bg-gray-700/50 backdrop-blur-sm p-6 rounded-2xl max-h-[60vh] overflow-y-auto text-gray-100 border border-gray-600/30">
+              <p className="whitespace-pre-wrap leading-relaxed">
                 {explainContent}
               </p>
             </div>
